@@ -1371,6 +1371,38 @@
             position: relative;
         }
 
+        :root {
+            --radius-x: 340px;
+        }
+
+        /* Saturn Ring Styles */
+        .saturn-ring {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            border-radius: 50%;
+            pointer-events: none;
+            transform-style: preserve-3d;
+            z-index: 1;
+            transition: width 0.3s, height 0.3s;
+        }
+
+        .saturn-ring-inner {
+            width: calc(var(--radius-x) * 2 - 40px);
+            height: calc(var(--radius-x) * 2 - 40px);
+            border: 1px dashed rgba(168, 85, 247, 0.12);
+            transform: translate3d(-50%, -50%, 0) rotateX(75deg);
+        }
+
+        .saturn-ring-outer {
+            width: calc(var(--radius-x) * 2 + 50px);
+            height: calc(var(--radius-x) * 2 + 50px);
+            border: 2px solid rgba(99, 102, 241, 0.08);
+            box-shadow: 0 0 45px rgba(99, 102, 241, 0.08), inset 0 0 45px rgba(99, 102, 241, 0.08);
+            background: radial-gradient(circle, transparent 65%, rgba(99, 102, 241, 0.01) 85%, rgba(99, 102, 241, 0.05) 100%);
+            transform: translate3d(-50%, -50%, 0) rotateX(75deg);
+        }
+
         .ecosystem-3d-container {
             perspective: 1600px;
             width: 100%;
@@ -2242,6 +2274,10 @@
             <h2 class="section-title" style="text-align: center; margin-bottom: 2rem;">AI Tooling & Agent Ecosystem</h2>
             
             <div class="ecosystem-3d-container reveal-node">
+                <!-- Saturn Plate Rings -->
+                <div class="saturn-ring saturn-ring-inner"></div>
+                <div class="saturn-ring saturn-ring-outer"></div>
+
                 <!-- Core Reactor -->
                 <div class="ecosystem-core">
                     <div class="core-ring core-ring-1"></div>
@@ -3028,33 +3064,82 @@
             });
         }
 
-        // --- 3D AI Ecosystem Orbit Positioning & Interactive Parallax ---
+        // --- 3D AI Ecosystem Orbit Positioning (Saturn Plate Scroll) ---
         const ecoContainer = document.querySelector('.ecosystem-3d-container');
         const ecoTrack = document.getElementById('ecosystem-track');
         if (ecoContainer && ecoTrack) {
             const ecoNodes = Array.from(ecoTrack.querySelectorAll('.ecosystem-node'));
             
+            let radiusX = 340;
+            let radiusY = 130;
+            let radiusZ = 240;
+
+            function calculateDimensions() {
+                const containerWidth = ecoContainer.offsetWidth || window.innerWidth;
+                radiusX = Math.min(containerWidth * 0.38, 340);
+                radiusY = radiusX * 0.30; // flatter tilt coordinate projection
+                radiusZ = radiusX * 0.75; // depth coordinate projection
+                
+                // Sync CSS radius variables for rings
+                document.documentElement.style.setProperty('--radius-x', `${radiusX}px`);
+            }
+
+            // Scroll rotation triggers
+            let targetScrollAngle = 0;
+            let currentScrollAngle = 0;
+
+            window.addEventListener('scroll', () => {
+                // Spinning speed is proportional to vertical scroll offsets
+                targetScrollAngle = window.pageYOffset * 0.0016;
+            }, { passive: true });
+
+            // Interactive mouse rotation tracking variables
+            let targetRotX = 0;
+            let targetRotY = 0;
+            let currentRotX = 0;
+            let currentRotY = 0;
+
+            if (window.innerWidth > 968) {
+                ecoContainer.addEventListener('mousemove', (e) => {
+                    const rect = ecoContainer.getBoundingClientRect();
+                    const mouseX = e.clientX - rect.left - rect.width / 2;
+                    const mouseY = e.clientY - rect.top - rect.height / 2;
+                    
+                    targetRotX = -(mouseY / rect.height) * 16;
+                    targetRotY = (mouseX / rect.width) * 20;
+                });
+
+                ecoContainer.addEventListener('mouseleave', () => {
+                    targetRotX = 0;
+                    targetRotY = 0;
+                });
+            }
+
             function positionNodes() {
                 const totalNodes = ecoNodes.length;
-                const containerWidth = ecoContainer.offsetWidth || window.innerWidth;
                 
-                // Orbit parameters based on container width dynamically
-                const radiusX = Math.min(containerWidth * 0.38, 340);
-                const radiusY = radiusX * 0.38;
-                
+                // Smooth interpolation for scroll rotation and mouse parallax tilt
+                currentScrollAngle += (targetScrollAngle - currentScrollAngle) * 0.08;
+                currentRotX += (targetRotX - currentRotX) * 0.08;
+                currentRotY += (targetRotY - currentRotY) * 0.08;
+
+                // Tilt the parent container track
+                ecoTrack.style.transform = `rotateX(${currentRotX}deg) rotateY(${currentRotY}deg)`;
+
                 ecoNodes.forEach((node, idx) => {
-                    const angle = (idx / totalNodes) * Math.PI * 2;
+                    // Angular position offsets based on index + scroll angle
+                    const angle = (idx / totalNodes) * Math.PI * 2 + currentScrollAngle;
                     
-                    // Ellipse coordinates with slight stagger variations
+                    // Coordinates on the Saturn Plate surface
                     const x = Math.cos(angle) * radiusX;
-                    const y = Math.sin(angle) * radiusY + (idx % 2 === 0 ? 25 : -25);
-                    const z = Math.sin(angle) * radiusX * 0.7; // Depth index calculation
+                    const y = Math.sin(angle) * radiusY;
+                    const z = Math.sin(angle) * radiusZ;
                     
                     node.style.transform = `translate3d(${x}px, ${y}px, ${z}px)`;
                     
                     // Compute size scaling & opacity based on Z depth position
-                    const scaleFactor = ((z + radiusX) / (radiusX * 2)) * 0.35 + 0.75; // Scale from 0.75 to 1.10
-                    const opacityFactor = ((z + radiusX) / (radiusX * 2)) * 0.6 + 0.4; // Opacity from 0.40 to 1.00
+                    const scaleFactor = ((z + radiusX) / (radiusX * 2)) * 0.35 + 0.75; 
+                    const opacityFactor = ((z + radiusX) / (radiusX * 2)) * 0.6 + 0.4; 
                     
                     node.style.scale = scaleFactor;
                     node.style.opacity = opacityFactor;
@@ -3062,27 +3147,17 @@
                 });
             }
 
-            positionNodes();
-            window.addEventListener('resize', positionNodes);
-
-            // Interactive mouse rotation tracking
-            if (window.innerWidth > 968) {
-                ecoContainer.addEventListener('mousemove', (e) => {
-                    const rect = ecoContainer.getBoundingClientRect();
-                    const mouseX = e.clientX - rect.left - rect.width / 2;
-                    const mouseY = e.clientY - rect.top - rect.height / 2;
-                    
-                    // Rotate track coordinates (max 20 degrees offset)
-                    const rotX = -(mouseY / rect.height) * 20;
-                    const rotY = (mouseX / rect.width) * 25;
-                    
-                    ecoTrack.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
-                });
-
-                ecoContainer.addEventListener('mouseleave', () => {
-                    ecoTrack.style.transform = `rotateX(0deg) rotateY(0deg)`;
-                });
+            // Animation Loop
+            function animateSaturnPlate() {
+                positionNodes();
+                requestAnimationFrame(animateSaturnPlate);
             }
+
+            calculateDimensions();
+            animateSaturnPlate();
+            window.addEventListener('resize', () => {
+                calculateDimensions();
+            });
         }
 
         // --- 3D Certifications Circular Carousel Logic ---
