@@ -2285,7 +2285,7 @@
                     <div class="core-ring core-ring-3"></div>
                     <div class="core-glow"></div>
                     <div class="core-symbol"><i class="fa-solid fa-microchip"></i></div>
-                    <span class="core-label">AI Orchestration</span>
+                    <span class="core-label">AI Tools</span>
                 </div>
                 
                 <!-- Orbital Nodes Wrapper -->
@@ -3093,6 +3093,56 @@
                 targetScrollAngle = window.pageYOffset * 0.0016;
             }, { passive: true });
 
+            // Direct drag and touch swipe interaction variables
+            let isDragging = false;
+            let dragStartX = 0;
+            let baseDragAngle = 0;
+            let targetDragAngle = 0;
+            let currentDragAngle = 0;
+
+            // Mouse Drag interaction
+            ecoContainer.addEventListener('mousedown', (e) => {
+                // Ignore clicks on anchor links so user can click to redirect
+                if (e.target.closest('a')) return;
+                isDragging = true;
+                dragStartX = e.clientX;
+                baseDragAngle = targetDragAngle;
+                document.body.style.userSelect = 'none';
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const diff = e.clientX - dragStartX;
+                const containerWidth = ecoContainer.offsetWidth || window.innerWidth;
+                targetDragAngle = baseDragAngle + (diff / containerWidth) * Math.PI * 1.8;
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    document.body.style.userSelect = '';
+                }
+            });
+
+            // Mobile Touch swipe interaction
+            ecoContainer.addEventListener('touchstart', (e) => {
+                if (e.target.closest('a')) return;
+                isDragging = true;
+                dragStartX = e.touches[0].clientX;
+                baseDragAngle = targetDragAngle;
+            }, { passive: true });
+
+            ecoContainer.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+                const diff = e.touches[0].clientX - dragStartX;
+                const containerWidth = ecoContainer.offsetWidth || window.innerWidth;
+                targetDragAngle = baseDragAngle + (diff / containerWidth) * Math.PI * 1.8;
+            }, { passive: true });
+
+            ecoContainer.addEventListener('touchend', () => {
+                isDragging = false;
+            });
+
             // Interactive mouse rotation tracking variables
             let targetRotX = 0;
             let targetRotY = 0;
@@ -3118,8 +3168,9 @@
             function positionNodes() {
                 const totalNodes = ecoNodes.length;
                 
-                // Smooth interpolation for scroll rotation and mouse parallax tilt
+                // Smooth interpolation for scroll rotation, drag rotation, and mouse parallax tilt
                 currentScrollAngle += (targetScrollAngle - currentScrollAngle) * 0.08;
+                currentDragAngle += (targetDragAngle - currentDragAngle) * 0.08;
                 currentRotX += (targetRotX - currentRotX) * 0.08;
                 currentRotY += (targetRotY - currentRotY) * 0.08;
 
@@ -3127,8 +3178,8 @@
                 ecoTrack.style.transform = `rotateX(${currentRotX}deg) rotateY(${currentRotY}deg)`;
 
                 ecoNodes.forEach((node, idx) => {
-                    // Angular position offsets based on index + scroll angle
-                    const angle = (idx / totalNodes) * Math.PI * 2 + currentScrollAngle;
+                    // Angular position offsets based on index + scroll angle + drag angle
+                    const angle = (idx / totalNodes) * Math.PI * 2 + currentScrollAngle + currentDragAngle;
                     
                     // Coordinates on the Saturn Plate surface
                     const x = Math.cos(angle) * radiusX;
