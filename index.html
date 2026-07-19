@@ -1252,6 +1252,73 @@
             animation: cinematicFloat 6s ease-in-out infinite;
         }
 
+        /* Background Ambient Audio Toggle Controls */
+        .ambient-audio-control {
+            position: fixed;
+            bottom: 2rem;
+            left: 2rem;
+            z-index: 10000;
+            background: rgba(3, 3, 7, 0.7);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: 999px;
+            padding: 0.6rem 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            box-shadow: 0 10px 30px var(--shadow-color);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+            user-select: none;
+        }
+        
+        .ambient-audio-control:hover {
+            border-color: var(--accent-color);
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 12px 35px rgba(99, 102, 241, 0.25);
+        }
+
+        .audio-bars {
+            display: flex;
+            align-items: flex-end;
+            gap: 2px;
+            width: 16px;
+            height: 14px;
+        }
+
+        .audio-bar {
+            width: 2px;
+            height: 3px;
+            background-color: var(--text-secondary);
+            border-radius: 99px;
+            transform-origin: bottom;
+            transition: background-color 0.3s;
+        }
+
+        .ambient-audio-control.playing .audio-bar {
+            background-color: var(--accent-color);
+            animation: bounceBar 1.2s ease-in-out infinite;
+        }
+
+        .ambient-audio-control.playing .audio-bar:nth-child(1) { animation-delay: 0.1s; }
+        .ambient-audio-control.playing .audio-bar:nth-child(2) { animation-delay: 0.4s; }
+        .ambient-audio-control.playing .audio-bar:nth-child(3) { animation-delay: 0.2s; }
+        .ambient-audio-control.playing .audio-bar:nth-child(4) { animation-delay: 0.6s; }
+
+        @keyframes bounceBar {
+            0%, 100% { transform: scaleY(1); }
+            50% { transform: scaleY(4.5); }
+        }
+
+        .audio-text {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.7rem;
+            letter-spacing: 1px;
+            color: var(--text-primary);
+            text-transform: uppercase;
+        }
+
         .projects-grid, .skills-grid, .edu-cert-grid {
             perspective: 1500px;
             transform-style: preserve-3d;
@@ -3429,6 +3496,120 @@
 
         mobileNavLinks.forEach(link => {
             link.addEventListener('click', closeMobileMenu);
+        });
+
+        // --- Cinematic Ambient Synth Background Audio Loop Logic ---
+        const ambientAudioBtn = document.createElement('div');
+        ambientAudioBtn.className = 'ambient-audio-control';
+        ambientAudioBtn.innerHTML = `
+            <div class="audio-bars">
+                <span class="audio-bar"></span>
+                <span class="audio-bar"></span>
+                <span class="audio-bar"></span>
+                <span class="audio-bar"></span>
+            </div>
+            <span class="audio-text">Ambient Synth: Off</span>
+        `;
+        document.body.appendChild(ambientAudioBtn);
+
+        let audioCtx = null;
+        let oscillators = [];
+        let filterNode = null;
+        let mainGain = null;
+        let lfoNode = null;
+        let isAudioPlaying = false;
+
+        function initAmbientSynth() {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Create warm low frequency saw oscillator
+            const osc1 = audioCtx.createOscillator();
+            osc1.type = 'sawtooth';
+            osc1.frequency.value = 65.41; // C2 low warm sub drone
+            
+            // Create triangle oscillator for mid frequencies
+            const osc2 = audioCtx.createOscillator();
+            osc2.type = 'triangle';
+            osc2.frequency.value = 130.81; // C3 chord note
+            
+            // Create sine oscillator for harmonic fifths
+            const osc3 = audioCtx.createOscillator();
+            osc3.type = 'sine';
+            osc3.frequency.value = 196.00; // G3 soft overtone
+            
+            // Warm lowpass filter sweeps
+            filterNode = audioCtx.createBiquadFilter();
+            filterNode.type = 'lowpass';
+            filterNode.frequency.value = 350;
+            filterNode.Q.value = 1.5;
+            
+            // Slow LFO filter modulator
+            lfoNode = audioCtx.createOscillator();
+            lfoNode.frequency.value = 0.12; // slow waves (8.3 seconds per cycle)
+            
+            const lfoGain = audioCtx.createGain();
+            lfoGain.gain.value = 130; // Modulate cutoff by 130Hz
+            
+            lfoNode.connect(lfoGain);
+            lfoGain.connect(filterNode.frequency);
+            
+            // Main volume controller
+            mainGain = audioCtx.createGain();
+            mainGain.gain.value = 0.0001; // Start silent for fade-in
+            
+            osc1.connect(filterNode);
+            osc2.connect(filterNode);
+            osc3.connect(filterNode);
+            filterNode.connect(mainGain);
+            mainGain.connect(audioCtx.destination);
+            
+            // Start audio nodes
+            osc1.start(0);
+            osc2.start(0);
+            osc3.start(0);
+            lfoNode.start(0);
+            
+            oscillators = [osc1, osc2, osc3, lfoNode];
+        }
+
+        ambientAudioBtn.addEventListener('click', () => {
+            if (!isAudioPlaying) {
+                // Play Audio
+                if (!audioCtx) {
+                    initAmbientSynth();
+                }
+                
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                
+                // Fade in volume smoothly over 1.2s to satisfy user ears
+                mainGain.gain.cancelScheduledValues(audioCtx.currentTime);
+                mainGain.gain.setValueAtTime(mainGain.gain.value, audioCtx.currentTime);
+                mainGain.gain.linearRampToValueAtTime(0.04, audioCtx.currentTime + 1.2);
+                
+                isAudioPlaying = true;
+                ambientAudioBtn.classList.add('playing');
+                ambientAudioBtn.querySelector('.audio-text').textContent = 'Ambient Synth: On';
+            } else {
+                // Pause/Mute Audio
+                if (audioCtx && mainGain) {
+                    // Fade out volume smoothly over 0.6s to satisfy user ears
+                    mainGain.gain.cancelScheduledValues(audioCtx.currentTime);
+                    mainGain.gain.setValueAtTime(mainGain.gain.value, audioCtx.currentTime);
+                    mainGain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 0.6);
+                    
+                    setTimeout(() => {
+                        if (!isAudioPlaying && audioCtx.state === 'running') {
+                            audioCtx.suspend();
+                        }
+                    }, 650);
+                }
+                
+                isAudioPlaying = false;
+                ambientAudioBtn.classList.remove('playing');
+                ambientAudioBtn.querySelector('.audio-text').textContent = 'Ambient Synth: Off';
+            }
         });
     </script>
 </body>
